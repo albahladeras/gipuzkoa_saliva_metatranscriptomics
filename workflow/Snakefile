@@ -2,6 +2,7 @@ rule all:
     input:
         f"results/final/final_report.txt"
 
+#test
 rule concatenate:
     input:
         r1_1=f"resources/reads/{{sample}}_lane1_1.fq.gz",

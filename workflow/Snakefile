@@ -1,0 +1,96 @@
+rule all:
+    input:
+        f"results/final/final_report.txt"
+
+rule concatenate:
+    input:
+        r1_1=f"resources/reads/{{sample}}_lane1_1.fq.gz",
+        r2_1=f"resources/reads/{{sample}}_lane2_1.fq.gz",
+        r3_1=f"resources/reads/{{sample}}_lane3_1.fq.gz",
+        r4_1=f"resources/reads/{{sample}}_lane4_1.fq.gz",
+        r1_2=f"resources/reads/{{sample}}_lane1_2.fq.gz",
+        r2_2=f"resources/reads/{{sample}}_lane2_2.fq.gz",
+        r3_2=f"resources/reads/{{sample}}_lane3_2.fq.gz",
+        r4_2=f"resources/reads/{{sample}}_lane4_2.fq.gz",
+    output:
+        r1=f"results/reads/{{sample}}_1.fq.gz",
+        r2=f"results/reads/{{sample}}_2.fq.gz"
+    resources:
+        mem_mb=lambda wildcards, input, attempt: max(1*1024, int(input.size_mb * 10) * 2 ** (attempt - 1)),
+        runtime=lambda wildcards, input, attempt: max(20, int(input.size_mb / 1024 * 2) * 2 ** (attempt - 1))
+    threads: 1
+    shell:
+        """
+        cat {input.r1_1} {input.r2_1} {input.r3_1} {input.r4_1} > {output.r1}
+        cat {input.r1_2} {input.r2_2} {input.r3_2} {input.r4_2} > {output.r2}
+        """
+
+rule fastp:
+    input:
+        r1=f"results/reads/{{sample}}_1.fq.gz",
+        r2=f"results/reads/{{sample}}_2.fq.gz"
+    output:
+        r1=f"results/fastp/{{sample}}_1.fq.gz",
+        r2=f"results/fastp/{{sample}}_2.fq.gz",
+        html=f"results/fastp/{{sample}}.html",
+        json=f"results/fastp/{{sample}}.json"
+    resources:
+        mem_mb=lambda wildcards, input, attempt: max(1*1024, int(input.size_mb * 10) * 2 ** (attempt - 1)),
+        runtime=lambda wildcards, input, attempt: max(20, int(input.size_mb / 1024 * 2) * 2 ** (attempt - 1))
+    threads: 1
+    conda:
+        "workflow/environments/fastp.yml"
+    shell:
+        """
+        fastp \
+            --in1 {input.r1} --in2 {input.r2} \
+            --out1 {output.r1} --out2 {output.r2} \
+            --trim_poly_g \
+            --trim_poly_x \
+            --low_complexity_filter \
+            --n_base_limit 5 \
+            --qualified_quality_phred 20 \
+            --length_required 60 \
+            --thread {threads} \
+            --html {output.html} \
+            --json {output.json} \
+            --adapter_sequence AGATCGGAAGAGCACACGTCTGAACTCCAGTCA \
+            --adapter_sequence_r2 AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGT
+        """
+
+rule reference_index:
+    input:
+        f"resources/references/human_genome.fasta.qz"
+    output:
+        index=f"resources/references/human_genome.fasta.rev.1.bt2"
+    params:
+        basename=f"resources/references/human_genome"
+    threads: 1
+    resources:
+        mem_mb=lambda wildcards, input, attempt: max(1*1024, int(input.size_mb * 10) * 2 ** (attempt - 1)),
+        runtime=lambda wildcards, input, attempt: max(20, int(input.size_mb / 1024 * 2) * 2 ** (attempt - 1))
+    conda:
+        "workflow/environments/mapping.yml"
+    shell:
+        """
+        module load {params.bowtie2_module}
+        bowtie2-build {input} {params.basename}
+        cat {input} > {params.basename}.fna
+        """
+
+rule reference_map:
+    input:
+        index=f"resources/references/human_genome.fasta.rev.1.bt2"
+        r1=f"results/fastp/{{sample}}_1.fq.gz",
+        r2=f"results/fastp/{{sample}}_2.fq.gz"
+    output:
+        f"{OUTPUT_DIR}/results/bowtie2/{{sample}}.bam"
+    threads: 16
+    resources:
+        mem_mb=lambda wildcards, input, attempt: max(1*1024, int(input.size_mb * 10) * 2 ** (attempt - 1)),
+        runtime=lambda wildcards, input, attempt: max(20, int(input.size_mb / 1024 * 2) * 2 ** (attempt - 1))
+    shell:
+        """
+        module load {params.bowtie2_module} {params.samtools_module}
+        bowtie2 -x {params.basename} -1 {input.r1} -2 {input.r2} -p {threads} | samtools view -bS - | samtools sort -o {output}
+        """

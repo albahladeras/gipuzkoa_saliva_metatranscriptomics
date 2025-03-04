@@ -1,0 +1,81 @@
+host: irlab.lm.ehu.es
+Building DAG of jobs...
+Using shell: /usr/bin/bash
+Provided cores: 32
+Rules claiming more threads will be scaled down.
+Job stats:
+job          count
+---------  -------
+all              1
+concat_r1        2
+concat_r2        2
+total            5
+
+Select jobs to execute...
+Execute 4 jobs...
+
+[Tue Mar  4 13:08:41 2025]
+localrule concat_r1:
+    input: /mnt/data3/alba_cph/resources/reads/84_S180_L001_R1_001.fastq.gz, /mnt/data3/alba_cph/resources/reads/84_S180_L002_R1_001.fastq.gz, /mnt/data3/alba_cph/resources/reads/84_S180_L003_R1_001.fastq.gz, /mnt/data3/alba_cph/resources/reads/84_S180_L004_R1_001.fastq.gz
+    output: /mnt/data3/alba_cph/results/01_concat/84_S180_R1_concat.fastq.gz
+    jobid: 1
+    reason: Missing output files: /mnt/data3/alba_cph/results/01_concat/84_S180_R1_concat.fastq.gz
+    wildcards: sample=84_S180
+    resources: tmpdir=/tmp, mem_mb=1024, mem_mib=977, runtime=30
+
+
+[Tue Mar  4 13:08:41 2025]
+localrule concat_r2:
+    input: /mnt/data3/alba_cph/resources/reads/77_S173_L001_R2_001.fastq.gz, /mnt/data3/alba_cph/resources/reads/77_S173_L002_R2_001.fastq.gz, /mnt/data3/alba_cph/resources/reads/77_S173_L003_R2_001.fastq.gz, /mnt/data3/alba_cph/resources/reads/77_S173_L004_R2_001.fastq.gz
+    output: /mnt/data3/alba_cph/results/01_concat/77_S173_R2_concat.fastq.gz
+    jobid: 4
+    reason: Missing output files: /mnt/data3/alba_cph/results/01_concat/77_S173_R2_concat.fastq.gz
+    wildcards: sample=77_S173
+    resources: tmpdir=/tmp, mem_mb=1024, mem_mib=977, runtime=30
+
+
+[Tue Mar  4 13:08:41 2025]
+localrule concat_r2:
+    input: /mnt/data3/alba_cph/resources/reads/84_S180_L001_R2_001.fastq.gz, /mnt/data3/alba_cph/resources/reads/84_S180_L002_R2_001.fastq.gz, /mnt/data3/alba_cph/resources/reads/84_S180_L003_R2_001.fastq.gz, /mnt/data3/alba_cph/resources/reads/84_S180_L004_R2_001.fastq.gz
+    output: /mnt/data3/alba_cph/results/01_concat/84_S180_R2_concat.fastq.gz
+    jobid: 3
+    reason: Missing output files: /mnt/data3/alba_cph/results/01_concat/84_S180_R2_concat.fastq.gz
+    wildcards: sample=84_S180
+    resources: tmpdir=/tmp, mem_mb=1024, mem_mib=977, runtime=30
+
+
+[Tue Mar  4 13:08:41 2025]
+localrule concat_r1:
+    input: /mnt/data3/alba_cph/resources/reads/77_S173_L001_R1_001.fastq.gz, /mnt/data3/alba_cph/resources/reads/77_S173_L002_R1_001.fastq.gz, /mnt/data3/alba_cph/resources/reads/77_S173_L003_R1_001.fastq.gz, /mnt/data3/alba_cph/resources/reads/77_S173_L004_R1_001.fastq.gz
+    output: /mnt/data3/alba_cph/results/01_concat/77_S173_R1_concat.fastq.gz
+    jobid: 2
+    reason: Missing output files: /mnt/data3/alba_cph/results/01_concat/77_S173_R1_concat.fastq.gz
+    wildcards: sample=77_S173
+    resources: tmpdir=/tmp, mem_mb=1024, mem_mib=977, runtime=30
+
+[Tue Mar  4 13:08:41 2025]
+Finished job 1.
+1 of 5 steps (20%) done
+[Tue Mar  4 13:08:41 2025]
+Finished job 2.
+2 of 5 steps (40%) done
+[Tue Mar  4 13:08:42 2025]
+Finished job 4.
+3 of 5 steps (60%) done
+[Tue Mar  4 13:08:42 2025]
+Finished job 3.
+4 of 5 steps (80%) done
+Select jobs to execute...
+Execute 1 jobs...
+
+[Tue Mar  4 13:08:42 2025]
+localrule all:
+    input: /mnt/data3/alba_cph/results/01_concat/84_S180_R1_concat.fastq.gz, /mnt/data3/alba_cph/results/01_concat/77_S173_R1_concat.fastq.gz, /mnt/data3/alba_cph/results/01_concat/84_S180_R2_concat.fastq.gz, /mnt/data3/alba_cph/results/01_concat/77_S173_R2_concat.fastq.gz
+    jobid: 0
+    reason: Input files updated by another job: /mnt/data3/alba_cph/results/01_concat/84_S180_R2_concat.fastq.gz, /mnt/data3/alba_cph/results/01_concat/84_S180_R1_concat.fastq.gz, /mnt/data3/alba_cph/results/01_concat/77_S173_R1_concat.fastq.gz, /mnt/data3/alba_cph/results/01_concat/77_S173_R2_concat.fastq.gz
+    resources: tmpdir=/tmp
+
+[Tue Mar  4 13:08:42 2025]
+Finished job 0.
+5 of 5 steps (100%) done
+Complete log: .snakemake/log/2025-03-04T130841.585877.snakemake.log

@@ -1,33 +1,36 @@
 from snakemake.io import glob_wildcards
+import glob
 
+# Checking files
+files_found = glob.glob("/mnt/data3/alba_cph/resources/reads/*.fastq.gz")
+print("Files found:", files_found)
 
+# Extracting the samples 
+lanes = glob_wildcards("/mnt/data3/alba_cph/resources/reads/{sample}_L{lane}_R{read}_001.fastq.gz")
+samples = set(lanes.sample)  # Removing duplicates
 
-lanes = glob_wildcards("~/Documentos/SalivaQTL/copenhague_analysis/resources/reads/{sample}_L00[1-4]_R[12]_001.fastq.gz")
-samples = lanes.sample
-
-
+# Checking if we found samples
+if not samples:
+    raise ValueError("Samples not found. Please, check the paths and file names")
 
 print("Samples extracted:", samples)
 
 rule all:
     input:
-        expand("~/Documentos/SalivaQTL/copenhague_analysis/results/{sample}_R1_concat.fastq.gz", sample=samples),
-        expand("~/Documentos/SalivaQTL/copenhague_analysis/results/{sample}_R2_concat.fastq.gz", sample=samples)
-       
-
+        expand("/mnt/data3/alba_cph/results/01_concat/{sample}_R1_concat.fastq.gz", sample=samples),
+        expand("/mnt/data3/alba_cph/results/01_concat/{sample}_R2_concat.fastq.gz", sample=samples)
 
 rule concat_r1:
     input:
-        l1_1 ="~/Documentos/SalivaQTL/copenhague_analysis/resources/reads/{sample}_L001_R1_001.fastq.gz",
-        l2_1="~/Documentos/SalivaQTL/copenhague_analysis/resources/reads/{sample}_L002_R1_001.fastq.gz",
-        l3_1="~/Documentos/SalivaQTL/copenhague_analysis/resources/reads/{sample}_L003_R1_001.fastq.gz",
-        l4_1="~/Documentos/SalivaQTL/copenhague_analysis/resources/reads/{sample}_L004_R1_001.fastq.gz"
+        l1_1="/mnt/data3/alba_cph/resources/reads/{sample}_L001_R1_001.fastq.gz",
+        l2_1="/mnt/data3/alba_cph/resources/reads/{sample}_L002_R1_001.fastq.gz",
+        l3_1="/mnt/data3/alba_cph/resources/reads/{sample}_L003_R1_001.fastq.gz",
+        l4_1="/mnt/data3/alba_cph/resources/reads/{sample}_L004_R1_001.fastq.gz"
     output:
-        "~/Documentos/SalivaQTL/copenhague_analysis/results/{sample}_R1_concat.fastq.gz"
+        "/mnt/data3/alba_cph/results/01_concat/{sample}_R1_concat.fastq.gz"
     resources:
-        mem_mb=1024, # 1GB 
+        mem_mb=1024,  # 1GB 
         runtime=30  # 30m
-
     shell:
         """
         cat {input.l1_1} {input.l2_1} {input.l3_1} {input.l4_1} > {output}  
@@ -35,13 +38,12 @@ rule concat_r1:
 
 rule concat_r2:
     input:
-        l1_2="~/Documentos/SalivaQTL/copenhague_analysis/resources/reads/{sample}_L001_R2_001.fastq.gz",
-        l2_2="~/Documentos/SalivaQTL/copenhague_analysis/resources/reads/{sample}_L002_R2_001.fastq.gz",
-        l3_2="~/Documentos/SalivaQTL/copenhague_analysis/resources/reads/{sample}_L003_R2_001.fastq.gz",
-        l4_2="~/Documentos/SalivaQTL/copenhague_analysis/resources/reads/{sample}_L004_R2_001.fastq.gz"
+        l1_2="/mnt/data3/alba_cph/resources/reads/{sample}_L001_R2_001.fastq.gz",
+        l2_2="/mnt/data3/alba_cph/resources/reads/{sample}_L002_R2_001.fastq.gz",
+        l3_2="/mnt/data3/alba_cph/resources/reads/{sample}_L003_R2_001.fastq.gz",
+        l4_2="/mnt/data3/alba_cph/resources/reads/{sample}_L004_R2_001.fastq.gz"
     output:
-        "~/Documentos/SalivaQTL/copenhague_analysis/results/{sample}_R2_concat.fastq.gz"
-    
+        "/mnt/data3/alba_cph/results/01_concat/{sample}_R2_concat.fastq.gz"
     resources:
         mem_mb=1024,  # 1GB 
         runtime=30  # 30m

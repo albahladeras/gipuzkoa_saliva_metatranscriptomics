@@ -17,8 +17,10 @@ print("Samples extracted:", samples)
 
 rule all:
     input:
-        expand("/mnt/data3/alba_cph/results/01_concat/{sample}_R1_concat.fastq.gz", sample=samples),
-        expand("/mnt/data3/alba_cph/results/01_concat/{sample}_R2_concat.fastq.gz", sample=samples)
+        expand("/mnt/data3/alba_cph/results/02_fastp/{sample}_R1_trimmed.fastq.gz", sample=samples),
+        expand("/mnt/data3/alba_cph/results/02_fastp/{sample}_R2_trimmed.fastq.gz", sample=samples)
+
+## Concatenating the different lanes
 
 rule concat_r1:
     input:
@@ -50,4 +52,45 @@ rule concat_r2:
     shell:
         """
         cat {input.l1_2} {input.l2_2} {input.l3_2} {input.l4_2} > {output}  
+        """
+
+## Fastp
+
+rule fastp_qc:
+    input:
+        r1="/mnt/data3/alba_cph/results/01_concat/{sample}_R1_concat.fastq.gz",
+        r2="/mnt/data3/alba_cph/results/01_concat/{sample}_R2_concat.fastq.gz"
+    output:
+        r1_trimmed="/mnt/data3/alba_cph/results/02_fastp/{sample}_R1_trimmed.fastq.gz",
+        r2_trimmed="/mnt/data3/alba_cph/results/02_fastp/{sample}_R2_trimmed.fastq.gz",
+        html="/mnt/data3/alba_cph/results/02_fastp/{sample}_fastp.html",
+        json="/mnt/data3/alba_cph/results/02_fastp/{sample}_fastp.json"
+    params:
+        fastp_log="/mnt/data3/alba_cph/results/02_fastp/{sample}_fastp.log"
+
+    resources:
+        mem_mb=lambda wildcards, input, attempt: max(1*1024, int(input.size_mb * 10) * 2 ** (attempt - 1)),
+        runtime=lambda wildcards, input, attempt: max(20, int(input.size_mb / 1024 * 2) * 2 ** (attempt - 1))
+    
+    threads: 1
+
+    conda:
+        "environments/fastp.yml"
+
+    shell:
+        """
+        /data/genotools/fastp \
+            --in1 {input.r1} --in2 {input.r2} \
+            --out1 {output.r1_trimmed} --out2 {output.r2_trimmed} \
+            --trim_poly_g \
+            --trim_poly_x \
+            --low_complexity_filter \
+            --n_base_limit 5 \
+            --qualified_quality_phred 20 \
+            --length_required 60 \
+            --thread {threads} \
+            --html {output.html} \
+            --json {output.json} \
+            --adapter_sequence AGATCGGAAGAGCACACGTCTGAACTCCAGTCA \
+            --adapter_sequence_r2 AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGT
         """

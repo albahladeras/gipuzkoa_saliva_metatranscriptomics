@@ -1,28 +1,51 @@
+from snakemake.io import glob_wildcards
+
+
+
+lanes = glob_wildcards("~/Documentos/SalivaQTL/copenhague_analysis/resources/reads/{sample}_L00[1-4]_R[12]_001.fastq.gz")
+samples = lanes.sample
+
+
+
+print("Samples extracted:", samples)
+
 rule all:
     input:
-        f"results/final/final_report.txt"
+        expand("~/Documentos/SalivaQTL/copenhague_analysis/results/{sample}_R1_concat.fastq.gz", sample=samples),
+        expand("~/Documentos/SalivaQTL/copenhague_analysis/results/{sample}_R2_concat.fastq.gz", sample=samples)
+       
 
-#test2
 
-rule concatenate:
+rule concat_r1:
     input:
-        r1_1=f"resources/reads/{{sample}}_lane1_1.fq.gz",
-        r2_1=f"resources/reads/{{sample}}_lane2_1.fq.gz",
-        r3_1=f"resources/reads/{{sample}}_lane3_1.fq.gz",
-        r4_1=f"resources/reads/{{sample}}_lane4_1.fq.gz",
-        r1_2=f"resources/reads/{{sample}}_lane1_2.fq.gz",
-        r2_2=f"resources/reads/{{sample}}_lane2_2.fq.gz",
-        r3_2=f"resources/reads/{{sample}}_lane3_2.fq.gz",
-        r4_2=f"resources/reads/{{sample}}_lane4_2.fq.gz",
+        l1_1 ="~/Documentos/SalivaQTL/copenhague_analysis/resources/reads/{sample}_L001_R1_001.fastq.gz",
+        l2_1="~/Documentos/SalivaQTL/copenhague_analysis/resources/reads/{sample}_L002_R1_001.fastq.gz",
+        l3_1="~/Documentos/SalivaQTL/copenhague_analysis/resources/reads/{sample}_L003_R1_001.fastq.gz",
+        l4_1="~/Documentos/SalivaQTL/copenhague_analysis/resources/reads/{sample}_L004_R1_001.fastq.gz"
     output:
-        r1=f"results/reads/{{sample}}_1.fq.gz",
-        r2=f"results/reads/{{sample}}_2.fq.gz"
+        "~/Documentos/SalivaQTL/copenhague_analysis/results/{sample}_R1_concat.fastq.gz"
     resources:
-        mem_mb=lambda wildcards, input, attempt: max(1*1024, int(input.size_mb * 10) * 2 ** (attempt - 1)),
-        runtime=lambda wildcards, input, attempt: max(20, int(input.size_mb / 1024 * 2) * 2 ** (attempt - 1))
-    threads: 1
+        mem_mb=1024, # 1GB 
+        runtime=30  # 30m
+
     shell:
         """
-        cat {input.r1_1} {input.r2_1} {input.r3_1} {input.r4_1} > {output.r1}
-        cat {input.r1_2} {input.r2_2} {input.r3_2} {input.r4_2} > {output.r2}
+        cat {input.l1_1} {input.l2_1} {input.l3_1} {input.l4_1} > {output}  
+        """
+
+rule concat_r2:
+    input:
+        l1_2="~/Documentos/SalivaQTL/copenhague_analysis/resources/reads/{sample}_L001_R2_001.fastq.gz",
+        l2_2="~/Documentos/SalivaQTL/copenhague_analysis/resources/reads/{sample}_L002_R2_001.fastq.gz",
+        l3_2="~/Documentos/SalivaQTL/copenhague_analysis/resources/reads/{sample}_L003_R2_001.fastq.gz",
+        l4_2="~/Documentos/SalivaQTL/copenhague_analysis/resources/reads/{sample}_L004_R2_001.fastq.gz"
+    output:
+        "~/Documentos/SalivaQTL/copenhague_analysis/results/{sample}_R2_concat.fastq.gz"
+    
+    resources:
+        mem_mb=1024,  # 1GB 
+        runtime=30  # 30m
+    shell:
+        """
+        cat {input.l1_2} {input.l2_2} {input.l3_2} {input.l4_2} > {output}  
         """

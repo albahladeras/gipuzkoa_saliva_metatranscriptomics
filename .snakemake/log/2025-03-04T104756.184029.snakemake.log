@@ -1,0 +1,2 @@
+SyntaxError in line 31 of /home/alba/Documentos/SalivaQTL/copenhague_analysis/gipuzkoa_saliva_metatranscriptomics/workflow/Snakefile:
+No rule keywords allowed after run/shell/script/wrapper/cwl in rule concat_r1. (Snakefile, line 31)

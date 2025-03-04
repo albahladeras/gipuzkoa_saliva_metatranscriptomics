@@ -1,3 +1,0 @@
-NameError in line 6 of /home/alba/Documentos/SalivaQTL/copenhague_analysis/gipuzkoa_saliva_metatranscriptomics/workflow/Snakefile:
-name 'wildcards_lane' is not defined
-  File "/home/alba/Documentos/SalivaQTL/copenhague_analysis/gipuzkoa_saliva_metatranscriptomics/workflow/Snakefile", line 6, in <module>

@@ -1,2 +1,0 @@
-SyntaxError in line 30 of /home/alba/Documentos/SalivaQTL/copenhague_analysis/gipuzkoa_saliva_metatranscriptomics/workflow/Snakefile:
-Multiple run or shell keywords in rule concat_r1. (Snakefile, line 30)

@@ -5,7 +5,7 @@ import glob
 files_found = glob.glob("/mnt/data3/alba_cph/resources/reads/*.fastq.gz")
 print("Files found:", files_found)
 
-# Extracting the samples 
+# Extracting the samples
 lanes = glob_wildcards("/mnt/data3/alba_cph/resources/reads/{sample}_L{lane}_R{read}_001.fastq.gz")
 samples = set(lanes.sample)  # Removing duplicates
 
@@ -17,11 +17,18 @@ print("Samples extracted:", samples)
 
 rule all:
     input:
+        # Fastp files
         expand("/mnt/data3/alba_cph/results/02_fastp/{sample}_R1_trimmed.fastq.gz", sample=samples),
-        expand("/mnt/data3/alba_cph/results/02_fastp/{sample}_R2_trimmed.fastq.gz", sample=samples)
+        expand("/mnt/data3/alba_cph/results/02_fastp/{sample}_R2_trimmed.fastq.gz", sample=samples),
+        # Indexing files (evitando wildcard 'ext')
+        "/mnt/data3/alba_cph/resources/references/GCA_000001405.15_GRCh38_no_alt_analysis_set.fna.1.bt2",
+        "/mnt/data3/alba_cph/resources/references/GCA_000001405.15_GRCh38_no_alt_analysis_set.fna.2.bt2",
+        "/mnt/data3/alba_cph/resources/references/GCA_000001405.15_GRCh38_no_alt_analysis_set.fna.3.bt2",
+        "/mnt/data3/alba_cph/resources/references/GCA_000001405.15_GRCh38_no_alt_analysis_set.fna.4.bt2",
+        "/mnt/data3/alba_cph/resources/references/GCA_000001405.15_GRCh38_no_alt_analysis_set.fna.rev.1.bt2",
+        "/mnt/data3/alba_cph/resources/references/GCA_000001405.15_GRCh38_no_alt_analysis_set.fna.rev.2.bt2"
 
 ## Concatenating the different lanes
-
 rule concat_r1:
     input:
         l1_1="/mnt/data3/alba_cph/resources/reads/{sample}_L001_R1_001.fastq.gz",
@@ -31,11 +38,11 @@ rule concat_r1:
     output:
         "/mnt/data3/alba_cph/results/01_concat/{sample}_R1_concat.fastq.gz"
     resources:
-        mem_mb=1024,  # 1GB 
-        runtime=30  # 30m
+        mem_mb=1024,
+        runtime=30
     shell:
         """
-        cat {input.l1_1} {input.l2_1} {input.l3_1} {input.l4_1} > {output}  
+        cat {input.l1_1} {input.l2_1} {input.l3_1} {input.l4_1} > {output}
         """
 
 rule concat_r2:
@@ -47,15 +54,14 @@ rule concat_r2:
     output:
         "/mnt/data3/alba_cph/results/01_concat/{sample}_R2_concat.fastq.gz"
     resources:
-        mem_mb=1024,  # 1GB 
-        runtime=30  # 30m
+        mem_mb=1024,
+        runtime=30
     shell:
         """
-        cat {input.l1_2} {input.l2_2} {input.l3_2} {input.l4_2} > {output}  
+        cat {input.l1_2} {input.l2_2} {input.l3_2} {input.l4_2} > {output}
         """
 
 ## Fastp
-
 rule fastp_qc:
     input:
         r1="/mnt/data3/alba_cph/results/01_concat/{sample}_R1_concat.fastq.gz",
@@ -67,16 +73,8 @@ rule fastp_qc:
         json="/mnt/data3/alba_cph/results/02_fastp/{sample}_fastp.json"
     params:
         fastp_log="/mnt/data3/alba_cph/results/02_fastp/{sample}_fastp.log"
-
-    resources:
-        mem_mb=lambda wildcards, input, attempt: max(1*1024, int(input.size_mb * 10) * 2 ** (attempt - 1)),
-        runtime=lambda wildcards, input, attempt: max(20, int(input.size_mb / 1024 * 2) * 2 ** (attempt - 1))
-    
-    threads: 1
-
     conda:
         "environments/fastp.yml"
-
     shell:
         """
         /data/genotools/fastp \
@@ -88,9 +86,24 @@ rule fastp_qc:
             --n_base_limit 5 \
             --qualified_quality_phred 20 \
             --length_required 60 \
-            --thread {threads} \
             --html {output.html} \
             --json {output.json} \
             --adapter_sequence AGATCGGAAGAGCACACGTCTGAACTCCAGTCA \
             --adapter_sequence_r2 AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGT
+        """
+
+## Indexing the human reference genome with bowtie2
+BOWTIE_DIR = "/data/resources/refgenome/ncbi_grch38"
+
+rule build_bowtie_index:
+    input:
+        fna = f"{BOWTIE_DIR}/GCA_000001405.15_GRCh38_no_alt_analysis_set.fna"
+    output:
+        expand("/mnt/data3/alba_cph/resources/references/GCA_000001405.15_GRCh38_no_alt_analysis_set.fna.{ext}", 
+               ext=["1.bt2", "2.bt2", "3.bt2", "4.bt2", "rev.1.bt2", "rev.2.bt2"])
+    conda:
+        "environments/mapping.yml"
+    shell:
+        """
+        bowtie2-build {input.fna} /mnt/data3/alba_cph/resources/references/GCA_000001405.15_GRCh38_no_alt_analysis_set.fna
         """

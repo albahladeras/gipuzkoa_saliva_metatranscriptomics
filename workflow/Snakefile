@@ -3,17 +3,14 @@ import glob
 import os
 
 # Checking files
-
 files_found = glob.glob("/mnt/data3/alba_cph/resources/reads/*.fastq.gz")
 print("Files found:", files_found)
 
 # Extracting the samples
-
 lanes = glob_wildcards("/mnt/data3/alba_cph/resources/reads/{sample}_L{lane}_R{read}_001.fastq.gz")
 samples = set(lanes.sample)  # Removing duplicates
 
 # Checking if we found samples
-
 if not samples:
     raise ValueError("Samples not found. Please, check the paths and file names")
 
@@ -22,12 +19,12 @@ print("Samples extracted:", samples)
 
 rule all:
     input:
-        expand("/mnt/data3/alba_cph/results/03_no_human/{sample}_no_human.1.gz", sample=samples),
-        expand("/mnt/data3/alba_cph/results/03_no_human/{sample}_no_human.2.gz", sample=samples),
-        expand("/mnt/data3/alba_cph/results/03_no_human/{sample}_human.sam", sample=samples),
-        expand("/mnt/data3/alba_cph/results/03_no_human/{sample}_bowtie.log", sample=samples) 
+        expand("/mnt/data3/alba_cph/results/04_no_rrna/{sample}_no_rrna_1.fastq.gz", sample=samples),
+        expand("/mnt/data3/alba_cph/results/04_no_rrna/{sample}_no_rrna_2.fastq.gz", sample=samples),
+        expand("/mnt/data3/alba_cph/results/04_no_rrna/{sample}_no_rrna.log", sample=samples)
 
-## Concatenating the different lanes
+
+## Concatenando las diferentes lanes
 rule concat_r1:
     input:
         l1_1="/mnt/data3/alba_cph/resources/reads/{sample}_L001_R1_001.fastq.gz",
@@ -38,7 +35,7 @@ rule concat_r1:
         "/mnt/data3/alba_cph/results/01_concat/{sample}_R1_concat.fastq.gz"
     resources:
         mem_mb=8192,
-        runtime=lambda wildcards, attempt: 60 * (2 ** (attempt - 1))
+        runtime=lambda wildcards, attempt: 60 * (2 ** (attempt - 1))  # Duplicar tiempo en cada intento
     threads: 2
     shell:
         """
@@ -55,16 +52,14 @@ rule concat_r2:
         "/mnt/data3/alba_cph/results/01_concat/{sample}_R2_concat.fastq.gz"
     resources:
         mem_mb=8192,
-        runtime=lambda wildcards, attempt: 60 * (2 ** (attempt - 1))  # Doubling time with each attempt
+        runtime=lambda wildcards, attempt: 60 * (2 ** (attempt - 1))  # Duplicar tiempo en cada intento
     threads: 2
     shell:
         """
         cat {input.l1_2} {input.l2_2} {input.l3_2} {input.l4_2} > {output}
         """
 
-## Removinig RNA-seq adapters and bad quality sequences with Fastp
-
-
+## Fastp
 rule fastp_qc:
     input:
         r1="/mnt/data3/alba_cph/results/01_concat/{sample}_R1_concat.fastq.gz",
@@ -80,7 +75,7 @@ rule fastp_qc:
         "environments/fastp.yml"
     resources:
         mem_mb=8192,
-        runtime=lambda wildcards, attempt: 60 * (2 ** (attempt - 1))  # Doubling time with each attempt
+        runtime=lambda wildcards, attempt: 60 * (2 ** (attempt - 1))  # Duplicar tiempo en cada intento
     threads: 2
     shell:
         """
@@ -99,14 +94,12 @@ rule fastp_qc:
             --adapter_sequence_r2 AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGT
         """
 
-## Indexing the human reference genome with Bowtie2
-
-
-BOWTIE_DIR = "/data/resources/refgenome/ncbi_grch38" # Change this directory <-----------------------------------
+## Indexing the human reference genome with bowtie2
+BOWTIE_DIR = "/data/resources/refgenome/ncbi_grch38"
 
 rule build_bowtie_index:
     input:
-        fna = f"{BOWTIE_DIR}/GCA_000001405.15_GRCh38_no_alt_analysis_set.fna" #Change the reference if needed --
+        fna = f"{BOWTIE_DIR}/GCA_000001405.15_GRCh38_no_alt_analysis_set.fna"
     output:
         expand("/mnt/data3/alba_cph/resources/references/GCA_000001405.15_GRCh38_no_alt_analysis_set.{ext}", 
                ext=["1.bt2", "2.bt2", "3.bt2", "4.bt2", "rev.1.bt2", "rev.2.bt2"])
@@ -114,14 +107,14 @@ rule build_bowtie_index:
         "environments/mapping.yml"
     resources:
         mem_mb=8192,
-        runtime=lambda wildcards, attempt: 60 * (2 ** (attempt - 1))  # Doubling time with each attempt
+        runtime=lambda wildcards, attempt: 60 * (2 ** (attempt - 1))  # Duplicar tiempo en cada intento
     threads: 2
     shell:
         """
         bowtie2-build {input.fna} /mnt/data3/alba_cph/resources/references/GCA_000001405.15_GRCh38_no_alt_analysis_set
         """
 
-## Removing the host RNA with Bowtie2
+## Removing the host RNA
 
 
 rule remove_human_rna:
@@ -147,4 +140,43 @@ rule remove_human_rna:
         2> {output.bowtie_log}
         """
 
-#Next step: remove files (.sam) that aligned to the human reference genome
+
+rule change_names:
+    input:
+        no_human1 = "/mnt/data3/alba_cph/results/03_no_human/{sample}_no_human.1.gz",
+        no_human2 = "/mnt/data3/alba_cph/results/03_no_human/{sample}_no_human.2.gz"
+
+    output: 
+        no_human1_format = "/mnt/data3/alba_cph/results/03_no_human/{sample}_no_human_1.fastq.gz",
+        no_human2_format = "/mnt/data3/alba_cph/results/03_no_human/{sample}_no_human_2.fastq.gz"
+    
+    shell:
+        """
+        mv {input.no_human1} {output.no_human1_format} 
+        mv {input.no_human2} {output.no_human2_format}
+        """
+
+
+
+
+rule remove_rrna:
+    input:
+        no_human1 = "/mnt/data3/alba_cph/results/03_no_human/{sample}_no_human_1.fastq.gz",
+        no_human2 = "/mnt/data3/alba_cph/results/03_no_human/{sample}_no_human_2.fastq.gz"
+
+    output:
+        no_rrna1 = "/mnt/data3/alba_cph/results/04_no_rrna/{sample}_no_rrna_1.fastq.gz",  # Not aligned sequences (non-human sequences R1)
+        no_rrna2 = "/mnt/data3/alba_cph/results/04_no_rrna/{sample}_no_rrna_2.fastq.gz",  # Not aligned sequences (non-human sequences R2)
+        no_rna_log = "/mnt/data3/alba_cph/results/04_no_rrna/{sample}_no_rrna.log"
+    conda:
+        "environments/rrna.yml"
+    shell:
+        """
+        ribodetector_cpu -t 2 \
+            -l 100 \
+            -i {input.no_human1} {input.no_human2} \
+            -e rrna \
+            --chunk_size 256 \
+            -o {output.no_rrna1} {output.no_rrna2} \
+            --log {output.no_rna_log}
+        """

@@ -1,96 +1,182 @@
+from snakemake.io import glob_wildcards
+import glob
+import os
+
+# Checking files
+files_found = glob.glob("/mnt/data3/alba_cph/resources/reads/*.fastq.gz")
+print("Files found:", files_found)
+
+# Extracting the samples
+lanes = glob_wildcards("/mnt/data3/alba_cph/resources/reads/{sample}_L{lane}_R{read}_001.fastq.gz")
+samples = set(lanes.sample)  # Removing duplicates
+
+# Checking if we found samples
+if not samples:
+    raise ValueError("Samples not found. Please, check the paths and file names")
+
+print("Samples extracted:", samples)
+
+
 rule all:
     input:
-        f"results/final/final_report.txt"
+        expand("/mnt/data3/alba_cph/results/04_no_rrna/{sample}_no_rrna_1.fastq.gz", sample=samples),
+        expand("/mnt/data3/alba_cph/results/04_no_rrna/{sample}_no_rrna_2.fastq.gz", sample=samples),
+        expand("/mnt/data3/alba_cph/results/04_no_rrna/{sample}_no_rrna.log", sample=samples)
 
-rule concatenate:
+
+## Concatenando las diferentes lanes
+rule concat_r1:
     input:
-        r1_1=f"resources/reads/{{sample}}_lane1_1.fq.gz",
-        r2_1=f"resources/reads/{{sample}}_lane2_1.fq.gz",
-        r3_1=f"resources/reads/{{sample}}_lane3_1.fq.gz",
-        r4_1=f"resources/reads/{{sample}}_lane4_1.fq.gz",
-        r1_2=f"resources/reads/{{sample}}_lane1_2.fq.gz",
-        r2_2=f"resources/reads/{{sample}}_lane2_2.fq.gz",
-        r3_2=f"resources/reads/{{sample}}_lane3_2.fq.gz",
-        r4_2=f"resources/reads/{{sample}}_lane4_2.fq.gz",
+        l1_1="/mnt/data3/alba_cph/resources/reads/{sample}_L001_R1_001.fastq.gz",
+        l2_1="/mnt/data3/alba_cph/resources/reads/{sample}_L002_R1_001.fastq.gz",
+        l3_1="/mnt/data3/alba_cph/resources/reads/{sample}_L003_R1_001.fastq.gz",
+        l4_1="/mnt/data3/alba_cph/resources/reads/{sample}_L004_R1_001.fastq.gz"
     output:
-        r1=f"results/reads/{{sample}}_1.fq.gz",
-        r2=f"results/reads/{{sample}}_2.fq.gz"
+        "/mnt/data3/alba_cph/results/01_concat/{sample}_R1_concat.fastq.gz"
     resources:
-        mem_mb=lambda wildcards, input, attempt: max(1*1024, int(input.size_mb * 10) * 2 ** (attempt - 1)),
-        runtime=lambda wildcards, input, attempt: max(20, int(input.size_mb / 1024 * 2) * 2 ** (attempt - 1))
-    threads: 1
+        mem_mb=8192,
+        runtime=lambda wildcards, attempt: 60 * (2 ** (attempt - 1))  # Duplicar tiempo en cada intento
+    threads: 2
     shell:
         """
-        cat {input.r1_1} {input.r2_1} {input.r3_1} {input.r4_1} > {output.r1}
-        cat {input.r1_2} {input.r2_2} {input.r3_2} {input.r4_2} > {output.r2}
+        cat {input.l1_1} {input.l2_1} {input.l3_1} {input.l4_1} > {output}
         """
 
-rule fastp:
+rule concat_r2:
     input:
-        r1=f"results/reads/{{sample}}_1.fq.gz",
-        r2=f"results/reads/{{sample}}_2.fq.gz"
+        l1_2="/mnt/data3/alba_cph/resources/reads/{sample}_L001_R2_001.fastq.gz",
+        l2_2="/mnt/data3/alba_cph/resources/reads/{sample}_L002_R2_001.fastq.gz",
+        l3_2="/mnt/data3/alba_cph/resources/reads/{sample}_L003_R2_001.fastq.gz",
+        l4_2="/mnt/data3/alba_cph/resources/reads/{sample}_L004_R2_001.fastq.gz"
     output:
-        r1=f"results/fastp/{{sample}}_1.fq.gz",
-        r2=f"results/fastp/{{sample}}_2.fq.gz",
-        html=f"results/fastp/{{sample}}.html",
-        json=f"results/fastp/{{sample}}.json"
+        "/mnt/data3/alba_cph/results/01_concat/{sample}_R2_concat.fastq.gz"
     resources:
-        mem_mb=lambda wildcards, input, attempt: max(1*1024, int(input.size_mb * 10) * 2 ** (attempt - 1)),
-        runtime=lambda wildcards, input, attempt: max(20, int(input.size_mb / 1024 * 2) * 2 ** (attempt - 1))
-    threads: 1
+        mem_mb=8192,
+        runtime=lambda wildcards, attempt: 60 * (2 ** (attempt - 1))  # Duplicar tiempo en cada intento
+    threads: 2
+    shell:
+        """
+        cat {input.l1_2} {input.l2_2} {input.l3_2} {input.l4_2} > {output}
+        """
+
+## Fastp
+rule fastp_qc:
+    input:
+        r1="/mnt/data3/alba_cph/results/01_concat/{sample}_R1_concat.fastq.gz",
+        r2="/mnt/data3/alba_cph/results/01_concat/{sample}_R2_concat.fastq.gz"
+    output:
+        r1_trimmed="/mnt/data3/alba_cph/results/02_fastp/{sample}_R1_trimmed.fastq.gz",
+        r2_trimmed="/mnt/data3/alba_cph/results/02_fastp/{sample}_R2_trimmed.fastq.gz",
+        html="/mnt/data3/alba_cph/results/02_fastp/{sample}_fastp.html",
+        json="/mnt/data3/alba_cph/results/02_fastp/{sample}_fastp.json"
+    params:
+        fastp_log="/mnt/data3/alba_cph/results/02_fastp/{sample}_fastp.log"
     conda:
-        "workflow/environments/fastp.yml"
+        "environments/fastp.yml"
+    resources:
+        mem_mb=8192,
+        runtime=lambda wildcards, attempt: 60 * (2 ** (attempt - 1))  # Duplicar tiempo en cada intento
+    threads: 2
     shell:
         """
-        fastp \
+        /data/genotools/fastp \
             --in1 {input.r1} --in2 {input.r2} \
-            --out1 {output.r1} --out2 {output.r2} \
+            --out1 {output.r1_trimmed} --out2 {output.r2_trimmed} \
             --trim_poly_g \
             --trim_poly_x \
             --low_complexity_filter \
             --n_base_limit 5 \
             --qualified_quality_phred 20 \
             --length_required 60 \
-            --thread {threads} \
             --html {output.html} \
             --json {output.json} \
             --adapter_sequence AGATCGGAAGAGCACACGTCTGAACTCCAGTCA \
             --adapter_sequence_r2 AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGT
         """
 
-rule reference_index:
+## Indexing the human reference genome with bowtie2
+BOWTIE_DIR = "/data/resources/refgenome/ncbi_grch38"
+
+rule build_bowtie_index:
     input:
-        f"resources/references/human_genome.fasta.qz"
+        fna = f"{BOWTIE_DIR}/GCA_000001405.15_GRCh38_no_alt_analysis_set.fna"
     output:
-        index=f"resources/references/human_genome.fasta.rev.1.bt2"
-    params:
-        basename=f"resources/references/human_genome"
-    threads: 1
-    resources:
-        mem_mb=lambda wildcards, input, attempt: max(1*1024, int(input.size_mb * 10) * 2 ** (attempt - 1)),
-        runtime=lambda wildcards, input, attempt: max(20, int(input.size_mb / 1024 * 2) * 2 ** (attempt - 1))
+        expand("/mnt/data3/alba_cph/resources/references/GCA_000001405.15_GRCh38_no_alt_analysis_set.{ext}", 
+               ext=["1.bt2", "2.bt2", "3.bt2", "4.bt2", "rev.1.bt2", "rev.2.bt2"])
     conda:
-        "workflow/environments/mapping.yml"
+        "environments/mapping.yml"
+    resources:
+        mem_mb=8192,
+        runtime=lambda wildcards, attempt: 60 * (2 ** (attempt - 1))  # Duplicar tiempo en cada intento
+    threads: 2
     shell:
         """
-        module load {params.bowtie2_module}
-        bowtie2-build {input} {params.basename}
-        cat {input} > {params.basename}.fna
+        bowtie2-build {input.fna} /mnt/data3/alba_cph/resources/references/GCA_000001405.15_GRCh38_no_alt_analysis_set
         """
 
-rule reference_map:
+## Removing the host RNA
+
+
+rule remove_human_rna:
     input:
-        index=f"resources/references/human_genome.fasta.rev.1.bt2"
-        r1=f"results/fastp/{{sample}}_1.fq.gz",
-        r2=f"results/fastp/{{sample}}_2.fq.gz"
+        bt2_index = expand("/mnt/data3/alba_cph/resources/references/GCA_000001405.15_GRCh38_no_alt_analysis_set.{ext}", 
+                           ext=["1.bt2", "2.bt2", "3.bt2", "4.bt2", "rev.1.bt2", "rev.2.bt2"]),
+        r1_trimmed = "/mnt/data3/alba_cph/results/02_fastp/{sample}_R1_trimmed.fastq.gz",
+        r2_trimmed = "/mnt/data3/alba_cph/results/02_fastp/{sample}_R2_trimmed.fastq.gz"
     output:
-        f"{OUTPUT_DIR}/results/bowtie2/{{sample}}.bam"
-    threads: 16
-    resources:
-        mem_mb=lambda wildcards, input, attempt: max(1*1024, int(input.size_mb * 10) * 2 ** (attempt - 1)),
-        runtime=lambda wildcards, input, attempt: max(20, int(input.size_mb / 1024 * 2) * 2 ** (attempt - 1))
+        no_human1 = "/mnt/data3/alba_cph/results/03_no_human/{sample}_no_human.1.gz",  # Not aligned sequences (non-human sequences R1)
+        no_human2 = "/mnt/data3/alba_cph/results/03_no_human/{sample}_no_human.2.gz",  # Not aligned sequences (non-human sequences R2)
+        human = "/mnt/data3/alba_cph/results/03_no_human/{sample}_human.sam",
+        bowtie_log = "/mnt/data3/alba_cph/results/03_no_human/{sample}_bowtie.log"
+    params:
+        output_filename = "/mnt/data3/alba_cph/results/03_no_human/{sample}_no_human.gz"
+    conda:
+        "environments/mapping.yml"
     shell:
         """
-        module load {params.bowtie2_module} {params.samtools_module}
-        bowtie2 -x {params.basename} -1 {input.r1} -2 {input.r2} -p {threads} | samtools view -bS - | samtools sort -o {output}
+        bowtie2 -x "/mnt/data3/alba_cph/resources/references/GCA_000001405.15_GRCh38_no_alt_analysis_set" \
+        -1 {input.r1_trimmed} -2 {input.r2_trimmed} \
+        --threads {threads} --un-conc-gz {params.output_filename} -S {output.human} \
+        2> {output.bowtie_log}
+        """
+
+
+rule change_names:
+    input:
+        no_human1 = "/mnt/data3/alba_cph/results/03_no_human/{sample}_no_human.1.gz",
+        no_human2 = "/mnt/data3/alba_cph/results/03_no_human/{sample}_no_human.2.gz"
+
+    output: 
+        no_human1_format = "/mnt/data3/alba_cph/results/03_no_human/{sample}_no_human_1.fastq.gz",
+        no_human2_format = "/mnt/data3/alba_cph/results/03_no_human/{sample}_no_human_2.fastq.gz"
+    
+    shell:
+        """
+        mv {input.no_human1} {output.no_human1_format} 
+        mv {input.no_human2} {output.no_human2_format}
+        """
+
+
+
+
+rule remove_rrna:
+    input:
+        no_human1 = "/mnt/data3/alba_cph/results/03_no_human/{sample}_no_human_1.fastq.gz",
+        no_human2 = "/mnt/data3/alba_cph/results/03_no_human/{sample}_no_human_2.fastq.gz"
+
+    output:
+        no_rrna1 = "/mnt/data3/alba_cph/results/04_no_rrna/{sample}_no_rrna_1.fastq.gz",  # Not aligned sequences (non-human sequences R1)
+        no_rrna2 = "/mnt/data3/alba_cph/results/04_no_rrna/{sample}_no_rrna_2.fastq.gz",  # Not aligned sequences (non-human sequences R2)
+        no_rna_log = "/mnt/data3/alba_cph/results/04_no_rrna/{sample}_no_rrna.log"
+    conda:
+        "environments/rrna.yml"
+    shell:
+        """
+        ribodetector_cpu -t 2 \
+            -l 100 \
+            -i {input.no_human1} {input.no_human2} \
+            -e rrna \
+            --chunk_size 256 \
+            -o {output.no_rrna1} {output.no_rrna2} \
+            --log {output.no_rna_log}
         """

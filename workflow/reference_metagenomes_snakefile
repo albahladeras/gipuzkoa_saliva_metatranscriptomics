@@ -2,7 +2,7 @@ from snakemake.io import glob_wildcards
 import os
 
 # Ruta donde están los archivos .zip de genomas
-path_reference_genomes = "/mnt/data3/alba_cph/resources/microbiome_saliva_bucal"
+path_reference_genomes = "/mnt/data3/alba_cph/resources/microbiome_saliva_bucal/tmp"
 
 # Ruta donde se guardarán los archivos de salida
 output_dir = "/mnt/data3/alba_cph/results/05_create_reference_genome"

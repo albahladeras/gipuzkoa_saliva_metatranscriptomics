@@ -5,7 +5,7 @@ import os
 path_reference_genomes = "/mnt/data3/alba_cph/resources/microbiome_saliva_bucal"
 
 # Ruta donde se guardarán los archivos de salida
-output_dir = "/mnt/data3/alba_cph/results/05_create_reference_genome"
+output_dir = "/mnt/data3/alba_cph/results/05_create_reference_genome/tmp"
 
 # Leer la lista de genomas desde el archivo `unique_reference_species.txt`
 with open(f"{path_reference_genomes}/unique_reference_species.txt", "r") as file:
@@ -40,3 +40,5 @@ rule create_output_dir:
         """
         mkdir -p {output}
         """
+
+## En realidad esto no hace mucha falta. Ahora queda mirar los headers, concatenar, indexar

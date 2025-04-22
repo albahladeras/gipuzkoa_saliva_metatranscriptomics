@@ -1,2 +1,3 @@
 # Directorios y archivos generados por Snakemake
-mnt/data3/alba_cph/gipuzkoa_saliva_metatranscriptomics/.snakemake/           # Directorio de estado y caches de Snakemake
+.snakemake/log           # Directorio de estado y caches de Snakemake
+.snakemake/metadata

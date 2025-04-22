@@ -20,6 +20,6 @@ subset_filesize <- metadata_filesize[largest == "yes"]
 subset_filesize[, Accession := paste0(Accession, ".zip")]
 
 fwrite(subset_filesize[, .(Accession)],
-    file = "temp/unique_reference_species.txt",
+    file = "results/05_create_reference_genome/unique_reference_species.txt",
     col.names = F, row.names = F, quote = F, sep = "\t"
 )

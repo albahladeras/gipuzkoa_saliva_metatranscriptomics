@@ -1,1 +1,1 @@
-# gipuzkoa_saliva_metatranscriptomics
+# Pipeline to analyze the saliva metatranscriptome

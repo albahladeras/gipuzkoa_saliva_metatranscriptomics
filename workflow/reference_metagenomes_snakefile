@@ -1,11 +1,10 @@
-from snakemake.io import glob_wildcards
 import os
 
 # Ruta donde están los archivos .zip de genomas
 path_reference_genomes = "/mnt/data3/alba_cph/resources/microbiome_saliva_bucal"
 
 # Ruta donde se guardarán los archivos de salida
-output_dir = "/mnt/data3/alba_cph/results/05_create_reference_genome/tmp"
+output_dir = "/mnt/data3/alba_cph/results/05_create_reference_genome"
 
 # Leer la lista de genomas desde el archivo `unique_reference_species.txt`
 with open(f"{path_reference_genomes}/unique_reference_species.txt", "r") as file:
@@ -19,26 +18,57 @@ print(len(GENOME_LIST))
 # Regla all: crea los archivos de salida basados en los genomas
 rule all:
     input:
-        expand(f"{output_dir}/{{genome}}", genome=GENOME_LIST)
+        "/mnt/data3/alba_cph/results/05_create_reference_genome/all_genomes.1.bt2",
+        "/mnt/data3/alba_cph/results/05_create_reference_genome/all_genomes.2.bt2",
+        "/mnt/data3/alba_cph/results/05_create_reference_genome/all_genomes.3.bt2",
+        "/mnt/data3/alba_cph/results/05_create_reference_genome/all_genomes.4.bt2",
+        "/mnt/data3/alba_cph/results/05_create_reference_genome/all_genomes.rev.1.bt2",
+        "/mnt/data3/alba_cph/results/05_create_reference_genome/all_genomes.rev.2.bt2",
+        "/mnt/data3/alba_cph/results/05_create_reference_genome/all_genomes.gff",
+        "/mnt/data3/alba_cph/results/05_create_reference_genome/all_genomes.faa",
+        "/mnt/data3/alba_cph/results/05_create_reference_genome/all_genomes.ffn"
 
-# Regla para copiar los genomas de la carpeta de entrada a la carpeta de salida
-rule subset_genomes:
+
+
+
+# Unzip files, save than in directories with the same name and remove zips
+rule unzip:
     input:
-        source = f"{path_reference_genomes}/{{genome}}"
+        zip_file=lambda wc: os.path.join(PATH_REF, f"{wc.genome}.zip")
     output:
-        dest = f"{output_dir}/{{genome}}"
+        directory(f"{TMP_DIR}/{{genome}}")
     shell:
         """
-        cp {input.source} {output.dest}
+        mkdir -p {output} \
+        && unzip -q {input.zip_file} -d {output} \
+        && rm -f {input.zip_file}
         """
 
-# Si no existe la carpeta de salida, se crea antes de ejecutar las reglas
-rule create_output_dir:
+# Concat fna files
+rule concatenate_fna:
+    input:
+        directory = TMP_DIR
     output:
-        directory(output_dir)
+        OUTPUT_FILE
+    shell:
+        """
+        find {input.directory} -name "*.fna" | sort | xargs cat > {output}
+        """
+
+#Build bowtie index
+rule build_bowtie_index:
+    input:
+        fna = f"{results_dir}/all_genomes.fna"
+    output:
+        expand("/mnt/data3/alba_cph/results/05_create_reference_genome/all_genomes.{ext}", 
+               ext=["1.bt2", "2.bt2", "3.bt2", "4.bt2", "rev.1.bt2", "rev.2.bt2"])
+    conda:
+        "environments/mapping.yml"
+    resources:
+        mem_mb=8192,
+        runtime=lambda wildcards, attempt: 60 * (2 ** (attempt - 1))  # Duplicar tiempo en cada intento
+    threads: 2
     shell:
         """
         mkdir -p {output}
         """
-
-## En realidad esto no hace mucha falta. Ahora queda mirar los headers, concatenar, indexar

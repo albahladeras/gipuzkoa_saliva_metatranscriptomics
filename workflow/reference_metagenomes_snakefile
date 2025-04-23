@@ -1,21 +1,19 @@
 import os
+from snakemake.io import expand
 
-# Ruta donde están los archivos .zip de genomas
-path_reference_genomes = "/mnt/data3/alba_cph/resources/microbiome_saliva_bucal"
+# Paths
+PATH_REF = "/mnt/data3/alba_cph/resources/microbiome_saliva_bucal"
+TMP_DIR = "/mnt/data3/alba_cph/results/05_create_reference_genome/tmp"
+OUTPUT_FILE = "/mnt/data3/alba_cph/results/05_create_reference_genome/all_genomes.fna"
+results_dir = "/mnt/data3/alba_cph/results/05_create_reference_genome"
 
-# Ruta donde se guardarán los archivos de salida
-output_dir = "/mnt/data3/alba_cph/results/05_create_reference_genome"
+# Unique reference genomes
+GENOMES = [
+    line.strip().replace(".zip", "")
+    for line in open(os.path.join(PATH_REF, "unique_reference_species.txt"))
+]
 
-# Leer la lista de genomas desde el archivo `unique_reference_species.txt`
-with open(f"{path_reference_genomes}/unique_reference_species.txt", "r") as file:
-    GENOME_LIST = [line.strip() for line in file.readlines()]
-
-# Imprimir para verificar que se leen correctamente los genomas
-print(GENOME_LIST)
-print(len(GENOME_LIST))
-
-
-# Regla all: crea los archivos de salida basados en los genomas
+# Rule all
 rule all:
     input:
         "/mnt/data3/alba_cph/results/05_create_reference_genome/all_genomes.1.bt2",
@@ -70,5 +68,27 @@ rule build_bowtie_index:
     threads: 2
     shell:
         """
-        mkdir -p {output}
+        bowtie2-build {input.fna} /mnt/data3/alba_cph/results/05_create_reference_genome/all_genomes
+        """
+
+## Generate gff, faa and ffn with prodigal
+## The meta option is to take into account that is a file with many genomes that have been concatenated   
+
+rule annotate_concatenated_with_prodigal:
+    input:
+        fna = f"{results_dir}/all_genomes.fna"
+    output:
+        gff = f"{results_dir}/all_genomes.gff",
+        faa = f"{results_dir}/all_genomes.faa",
+        ffn = f"{results_dir}/all_genomes.ffn"
+    conda:
+        "environments/prodigal.yml"
+    shell:
+        """
+        prodigal -i {input.fna} \
+                 -o {output.gff} \
+                 -a {output.faa} \
+                 -d {output.ffn} \
+                 -f gff \
+                 -p meta
         """

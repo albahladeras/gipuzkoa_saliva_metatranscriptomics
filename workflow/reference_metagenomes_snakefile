@@ -1,74 +1,118 @@
 import os
+from snakemake.io import expand, glob_wildcards, directory
 
-# Ruta donde están los archivos .zip de genomas
-path_reference_genomes = "/mnt/data3/alba_cph/resources/microbiome_saliva_bucal"
+# Paths
+PATH_REF    = "/mnt/data3/alba_cph/resources/microbiome_saliva_bucal"
+TMP_DIR     = "/mnt/data3/alba_cph/results/05_create_reference_genome/tmp"
+results_dir = "/mnt/data3/alba_cph/results/05_create_reference_genome"
+OUTPUT_FNA  = os.path.join(results_dir, "all_genomes.fna")
 
-# Ruta donde se guardarán los archivos de salida
-output_dir = "/mnt/data3/alba_cph/results/05_create_reference_genome"
+# Fastq input directory
+fastq_dir = "/mnt/data3/alba_cph/results/04_no_rrna"
 
-# Leer la lista de genomas desde el archivo `unique_reference_species.txt`
-with open(f"{path_reference_genomes}/unique_reference_species.txt", "r") as file:
-    GENOME_LIST = [line.strip() for line in file.readlines()]
+# Capture samples from the de-rRNA’d fastqs
+lanes   = glob_wildcards(os.path.join(fastq_dir, "{sample}_no_rrna_{R}.fastq.gz"))
+samples = set(lanes.sample)
 
-# Imprimir para verificar que se leen correctamente los genomas
-print(GENOME_LIST)
-print(len(GENOME_LIST))
+# Unique reference genomes (sin la extensión .zip)
+GENOMES = [
+    line.strip().replace(".zip", "")
+    for line in open(os.path.join(PATH_REF, "unique_reference_species.txt"))
+]
 
-
-# Regla all: crea los archivos de salida basados en los genomas
 rule all:
     input:
-        "/mnt/data3/alba_cph/results/05_create_reference_genome/all_genomes.1.bt2",
-        "/mnt/data3/alba_cph/results/05_create_reference_genome/all_genomes.2.bt2",
-        "/mnt/data3/alba_cph/results/05_create_reference_genome/all_genomes.3.bt2",
-        "/mnt/data3/alba_cph/results/05_create_reference_genome/all_genomes.4.bt2",
-        "/mnt/data3/alba_cph/results/05_create_reference_genome/all_genomes.rev.1.bt2",
-        "/mnt/data3/alba_cph/results/05_create_reference_genome/all_genomes.rev.2.bt2",
-        "/mnt/data3/alba_cph/results/05_create_reference_genome/all_genomes.gff",
-        "/mnt/data3/alba_cph/results/05_create_reference_genome/all_genomes.faa",
-        "/mnt/data3/alba_cph/results/05_create_reference_genome/all_genomes.ffn"
+        # Concatenated genome and annotations
+        OUTPUT_FNA,
+        os.path.join(results_dir, "all_genomes.gff"),
+        os.path.join(results_dir, "all_genomes.faa"),
+        os.path.join(results_dir, "all_genomes.ffn"),
+        # Bowtie2 index files
+        expand(os.path.join(results_dir, "all_genomes.{ext}"),
+               ext=["1.bt2", "2.bt2", "3.bt2", "4.bt2", "rev.1.bt2", "rev.2.bt2"]),
+        # Alignments and indices per sample
+        expand(os.path.join(results_dir, "{sample}_mapped.bam"), sample=samples),
+        expand(os.path.join(results_dir, "{sample}_mapped.bam.bai"), sample=samples)
 
-
-
-
-# Unzip files, save than in directories with the same name and remove zips
 rule unzip:
     input:
         zip_file=lambda wc: os.path.join(PATH_REF, f"{wc.genome}.zip")
     output:
-        directory(f"{TMP_DIR}/{{genome}}")
+        directory(os.path.join(TMP_DIR, "{genome}"))
     shell:
         """
         mkdir -p {output} \
-        && unzip -q {input.zip_file} -d {output} \
-        && rm -f {input.zip_file}
+        && unzip -q {input.zip_file} -d {output}
         """
 
-# Concat fna files
 rule concatenate_fna:
     input:
-        directory = TMP_DIR
+        dirs=expand(os.path.join(TMP_DIR, "{genome}"), genome=GENOMES)
     output:
-        OUTPUT_FILE
+        OUTPUT_FNA
     shell:
         """
-        find {input.directory} -name "*.fna" | sort | xargs cat > {output}
+        find {TMP_DIR} -name "*.fna" | sort | xargs cat > {output}
         """
 
-#Build bowtie index
 rule build_bowtie_index:
     input:
-        fna = f"{results_dir}/all_genomes.fna"
+        fna=OUTPUT_FNA
     output:
-        expand("/mnt/data3/alba_cph/results/05_create_reference_genome/all_genomes.{ext}", 
+        expand(os.path.join(results_dir, "all_genomes.{ext}"),
                ext=["1.bt2", "2.bt2", "3.bt2", "4.bt2", "rev.1.bt2", "rev.2.bt2"])
     conda:
         "environments/mapping.yml"
     resources:
         mem_mb=8192,
-        runtime=lambda wildcards, attempt: 60 * (2 ** (attempt - 1))  # Duplicar tiempo en cada intento
+        runtime=lambda wildcards, attempt: 60 * (2 ** (attempt - 1))
     threads: 2
     shell:
         """
-        mkdir -p {output}
+        bowtie2-build {input.fna} {results_dir}/all_genomes
+        """
+
+rule annotate_concatenated_with_prodigal:
+    input:
+        fna=OUTPUT_FNA
+    output:
+        gff=os.path.join(results_dir, "all_genomes.gff"),
+        faa=os.path.join(results_dir, "all_genomes.faa"),
+        ffn=os.path.join(results_dir, "all_genomes.ffn")
+    conda:
+        "environments/prodigal.yml"
+    shell:
+        """
+        prodigal -i {input.fna} \
+                 -o {output.gff} \
+                 -a {output.faa} \
+                 -d {output.ffn} \
+                 -f gff \
+                 -p meta
+        """
+
+rule mapping:
+    input:
+        # Todos los archivos de índice de bowtie2
+        bt2_index=expand(os.path.join(results_dir, "all_genomes.{ext}"),
+                         ext=["1.bt2", "2.bt2", "3.bt2", "4.bt2", "rev.1.bt2", "rev.2.bt2"]),
+        r1=os.path.join(fastq_dir, "{sample}_no_rrna_1.fastq.gz"),
+        r2=os.path.join(fastq_dir, "{sample}_no_rrna_2.fastq.gz")
+    output:
+        bam=os.path.join(results_dir, "{sample}_mapped.bam"),
+        bai=os.path.join(results_dir, "{sample}_mapped.bam.bai"),
+        log=os.path.join(results_dir, "{sample}_bowtie.log")
+    conda:
+        "environments/mapping.yml"
+    threads: 4
+    shell:
+        """
+        bowtie2 -x {results_dir}/all_genomes \
+                -1 {input.r1} -2 {input.r2} \
+                --threads {threads} \
+                2> {output.log} | \
+        samtools view -bS - | \
+        samtools sort -o {output.bam}
+
+        samtools index {output.bam}
         """

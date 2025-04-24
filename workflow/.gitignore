@@ -1,3 +1,2 @@
 # Directorios y archivos generados por Snakemake
-.snakemake/log           # Directorio de estado y caches de Snakemake
-.snakemake/metadata
+.snakemake

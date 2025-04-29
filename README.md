@@ -27,7 +27,6 @@ Create the following directories on your server:
 
 Open the Snakefile located at `workflow/Snakefile` and update the following path variables:
 
-```python
 # Raw data
 READS_DIR = "resources/reads"
 REF_GENOME_DIR = "resources/references/human_reference"
@@ -51,6 +50,8 @@ Then, update the reference genome filename in two specific rules:
 
 Once everything is set up, launch the pipeline using:
 
+```
 snakemake -s workflow/Snakefile --cores NUMBER_OF_CORES --use-conda
+```
 
-    💡 Replace NUMBER_OF_CORES with the number of CPU cores you want to allocate for parallel execution.
+💡 Replace NUMBER_OF_CORES with the number of CPU cores you want to allocate for parallel execution.

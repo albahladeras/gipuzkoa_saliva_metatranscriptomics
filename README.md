@@ -27,7 +27,7 @@ Create the following directories on your server:
 
 Open the Snakefile located at `workflow/Snakefile` and update the following path variables:
 
-# Raw data
+```python
 READS_DIR = "resources/reads"
 REF_GENOME_DIR = "resources/references/human_reference"
 RESULTS_DIR = "results"
@@ -40,13 +40,13 @@ NO_RRNA_DIR = os.path.join(RESULTS_DIR, "05_no_rrna")
 
 Then, update the reference genome filename in two specific rules:
 
-    build_bowtie_index
+    **build_bowtie_index**
     Modify the input, output, and shell sections to reflect the correct filename.
 
-    remove_human_rna
+    **remove_human_rna**
     Modify the input and params sections with the correct genome name.
 
-🚀 Step 3: Run the Workflow
+## Step 3: Run the Workflow
 
 Once everything is set up, launch the pipeline using:
 

@@ -38,6 +38,8 @@ REF_GENOME_INDEX_DIR = os.path.join(RESULTS_DIR, "03_index_human_reference")
 NO_HUMAN_DIR = os.path.join(RESULTS_DIR, "04_no_human")
 NO_RRNA_DIR = os.path.join(RESULTS_DIR, "05_no_rrna")
 
+
+
 Then, update the reference genome filename in two specific rules:
 
     **build_bowtie_index**

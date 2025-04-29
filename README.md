@@ -8,10 +8,17 @@ This pipeline processes metatranscriptomic data from saliva samples, including h
 
 Create the following directories on your server:
 
-resources/ reads/ # Raw FASTQ files references/ human_reference/ # Human genome reference GTDB/ # GTDB references
+- `resources/reads/` — for the raw FASTQ files  
+- `resources/references/human_reference/` — for the human genome reference  
+- `resources/references/GTDB/` — for GTDB reference files  
 
-results/ 01_concat/ 02_fastp/ 03_index_human_reference/ 04_no_human/ 05_no_rrna/ 06_create_reference_genome/ tmp/
-
+- `results/01_concat/`  
+- `results/02_fastp/`  
+- `results/03_index_human_reference/`  
+- `results/04_no_human/`  
+- `results/05_no_rrna/`  
+- `results/06_create_reference_genome/`  
+- `results/06_create_reference_genome/tmp/`  
 
 
 ---

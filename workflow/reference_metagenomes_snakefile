@@ -1,42 +1,44 @@
 import os
 from snakemake.io import expand, glob_wildcards, directory
 
-# Paths
-PATH_REF    = "/mnt/data3/alba_cph/resources/microbiome_saliva_bucal"
-TMP_DIR     = "/mnt/data3/alba_cph/results/05_create_reference_genome/tmp"
-results_dir = "/mnt/data3/alba_cph/results/05_create_reference_genome"
-OUTPUT_FNA  = os.path.join(results_dir, "all_genomes.fna")
+# Data paths
+METAGENOME_REF_DIR    = "/mnt/data3/alba_cph/resources/references/GTDB"
+QCED_READS = "/mnt/data3/alba_cph/results/05_no_rrna"
 
-# Fastq input directory
-fastq_dir = "/mnt/data3/alba_cph/results/04_no_rrna"
+#Temporary paths
+TMP_DIR     = "/mnt/data3/alba_cph/results/06_create_reference_genome/tmp"
 
-# Capture samples from the de-rRNA’d fastqs
-lanes   = glob_wildcards(os.path.join(fastq_dir, "{sample}_no_rrna_{R}.fastq.gz"))
+#Results paths
+RESULTS_DIR = "/mnt/data3/alba_cph/results/06_create_reference_genome"
+
+# Capture samples from the NO rRNA fastqs
+lanes   = glob_wildcards(os.path.join(QCED_READS, "{sample}_no_rrna_{R}.fastq.gz"))
 samples = set(lanes.sample)
 
-# Unique reference genomes (sin la extensión .zip)
+# Unique reference genomes (without the -zip extension)
 GENOMES = [
     line.strip().replace(".zip", "")
-    for line in open(os.path.join(PATH_REF, "unique_reference_species.txt"))
+    for line in open(os.path.join(METAGENOME_REF_DIR, "unique_reference_species.txt"))
 ]
 
+#Remember create the tmp directory if it does not exist in the GTDB folder
 rule all:
     input:
         # Concatenated genome and annotations
-        OUTPUT_FNA,
-        os.path.join(results_dir, "all_genomes.gff"),
-        os.path.join(results_dir, "all_genomes.faa"),
-        os.path.join(results_dir, "all_genomes.ffn"),
+        os.path.join(RESULTS_DIR, "all_genomes.fna"),
+        os.path.join(RESULTS_DIR, "all_genomes.gff"),
+        os.path.join(RESULTS_DIR, "all_genomes.faa"),
+        os.path.join(RESULTS_DIR, "all_genomes.ffn"),
         # Bowtie2 index files
-        expand(os.path.join(results_dir, "all_genomes.{ext}"),
+        expand(os.path.join(RESULTS_DIR, "all_genomes.{ext}"),
                ext=["1.bt2", "2.bt2", "3.bt2", "4.bt2", "rev.1.bt2", "rev.2.bt2"]),
         # Alignments and indices per sample
-        expand(os.path.join(results_dir, "{sample}_mapped.bam"), sample=samples),
-        expand(os.path.join(results_dir, "{sample}_mapped.bam.bai"), sample=samples)
+        expand(os.path.join(RESULTS_DIR, "{sample}_mapped.bam"), sample=samples),
+        expand(os.path.join(RESULTS_DIR, "{sample}_mapped.bam.bai"), sample=samples)
 
 rule unzip:
     input:
-        zip_file=lambda wc: os.path.join(PATH_REF, f"{wc.genome}.zip")
+        zip_file=lambda wc: os.path.join(METAGENOME_REF_DIR, f"{wc.genome}.zip")
     output:
         directory(os.path.join(TMP_DIR, "{genome}"))
     shell:
@@ -49,7 +51,7 @@ rule concatenate_fna:
     input:
         dirs=expand(os.path.join(TMP_DIR, "{genome}"), genome=GENOMES)
     output:
-        OUTPUT_FNA
+        os.path.join(RESULTS_DIR, "all_genomes.fna")
     shell:
         """
         find {TMP_DIR} -name "*.fna" | sort | xargs cat > {output}
@@ -57,28 +59,28 @@ rule concatenate_fna:
 
 rule build_bowtie_index:
     input:
-        fna=OUTPUT_FNA
+        fna= os.path.join(RESULTS_DIR, "all_genomes.fna")
     output:
-        expand(os.path.join(results_dir, "all_genomes.{ext}"),
+        expand(os.path.join(RESULTS_DIR, "all_genomes.{ext}"),
                ext=["1.bt2", "2.bt2", "3.bt2", "4.bt2", "rev.1.bt2", "rev.2.bt2"])
     conda:
         "environments/mapping.yml"
     resources:
         mem_mb=8192,
         runtime=lambda wildcards, attempt: 60 * (2 ** (attempt - 1))
-    threads: 2
+    threads: 8
     shell:
         """
-        bowtie2-build {input.fna} {results_dir}/all_genomes
+        bowtie2-build {input.fna} {RESULTS_DIR}/all_genomes
         """
 
 rule annotate_concatenated_with_prodigal:
     input:
-        fna=OUTPUT_FNA
+        fna=os.path.join(RESULTS_DIR, "all_genomes.fna")
     output:
-        gff=os.path.join(results_dir, "all_genomes.gff"),
-        faa=os.path.join(results_dir, "all_genomes.faa"),
-        ffn=os.path.join(results_dir, "all_genomes.ffn")
+        gff=os.path.join(RESULTS_DIR, "all_genomes.gff"),
+        faa=os.path.join(RESULTS_DIR, "all_genomes.faa"),
+        ffn=os.path.join(RESULTS_DIR, "all_genomes.ffn")
     conda:
         "environments/prodigal.yml"
     shell:
@@ -94,20 +96,20 @@ rule annotate_concatenated_with_prodigal:
 rule mapping:
     input:
         # Todos los archivos de índice de bowtie2
-        bt2_index=expand(os.path.join(results_dir, "all_genomes.{ext}"),
+        bt2_index=expand(os.path.join(RESULTS_DIR, "all_genomes.{ext}"),
                          ext=["1.bt2", "2.bt2", "3.bt2", "4.bt2", "rev.1.bt2", "rev.2.bt2"]),
-        r1=os.path.join(fastq_dir, "{sample}_no_rrna_1.fastq.gz"),
-        r2=os.path.join(fastq_dir, "{sample}_no_rrna_2.fastq.gz")
+        r1=os.path.join(QCED_READS, "{sample}_no_rrna_1.fastq.gz"),
+        r2=os.path.join(QCED_READS, "{sample}_no_rrna_2.fastq.gz")
     output:
-        bam=os.path.join(results_dir, "{sample}_mapped.bam"),
-        bai=os.path.join(results_dir, "{sample}_mapped.bam.bai"),
-        log=os.path.join(results_dir, "{sample}_bowtie.log")
+        bam=os.path.join(RESULTS_DIR, "{sample}_mapped.bam"),
+        bai=os.path.join(RESULTS_DIR, "{sample}_mapped.bam.bai"),
+        log=os.path.join(RESULTS_DIR, "{sample}_bowtie.log")
     conda:
         "environments/mapping.yml"
-    threads: 4
+    threads: 8
     shell:
         """
-        bowtie2 -x {results_dir}/all_genomes \
+        bowtie2 -x {RESULTS_DIR}/all_genomes \
                 -1 {input.r1} -2 {input.r2} \
                 --threads {threads} \
                 2> {output.log} | \

@@ -34,7 +34,9 @@ rule all:
                ext=["1.bt2", "2.bt2", "3.bt2", "4.bt2", "rev.1.bt2", "rev.2.bt2"]),
         # Alignments and indices per sample
         expand(os.path.join(RESULTS_DIR, "{sample}_mapped.bam"), sample=samples),
-        expand(os.path.join(RESULTS_DIR, "{sample}_mapped.bam.bai"), sample=samples)
+        expand(os.path.join(RESULTS_DIR, "{sample}_mapped.bam.bai"), sample=samples),
+        # Gene coverage per sample
+        expand(os.path.join(RESULTS_DIR, "{sample}_covered_genes.bed"), sample=samples)
 
 rule unzip:
     input:
@@ -117,4 +119,25 @@ rule mapping:
         samtools sort -o {output.bam}
 
         samtools index {output.bam}
+        """
+
+rule extract_gene_coverage:
+    input:
+        gff=os.path.join(RESULTS_DIR, "all_genomes.gff"),
+        bam=os.path.join(RESULTS_DIR, "{sample}_mapped.bam")
+    output:
+        os.path.join(RESULTS_DIR, "{sample}_covered_genes.bed")
+    conda:
+        "environments/bedtools.yml"
+    shell:
+        """
+        # Extract lines with "CDS" in the gff file and convert to BED format
+        awk '$3 == "CDS"' {input.gff} | \
+        awk 'BEGIN{{OFS="\\t"}} {{print $1, $4-1, $5, ".", ".", $7}}' > {wildcards.sample}_genes.bed
+
+        # Use bed tools to intersect
+        bedtools intersect -a {wildcards.sample}_genes.bed -b {input.bam} -bed > {output}
+
+        # Clen temporary files
+        rm {wildcards.sample}_genes.bed
         """

@@ -1,15 +1,17 @@
 import os
+import glob
 from snakemake.io import expand, glob_wildcards, directory
 
 # Data paths
 METAGENOME_REF_DIR    = "/mnt/data3/alba_cph/resources/references/GTDB"
 QCED_READS = "/mnt/data3/alba_cph/results/05_no_rrna"
 
-#Temporary paths
-TMP_DIR     = "/mnt/data3/alba_cph/results/06_create_reference_genome/tmp"
+#Intermediate results paths
+UNZIP_DIR     = "/mnt/data3/alba_cph/results/06_unzip_reference_genomes"
+CONCAT_INDEX = "/mnt/data3/alba_cph/results/07_concat_and_index"
+MAPPING_DIR = "/mnt/data3/alba_cph/results/08_mapping"
+PROKKA     = "/mnt/data3/alba_cph/results/09_prokka"
 
-#Results paths
-RESULTS_DIR = "/mnt/data3/alba_cph/results/06_create_reference_genome"
 
 # Capture samples from the NO rRNA fastqs
 lanes   = glob_wildcards(os.path.join(QCED_READS, "{sample}_no_rrna_{R}.fastq.gz"))
@@ -25,24 +27,36 @@ GENOMES = [
 rule all:
     input:
         # Concatenated genome and annotations
-        os.path.join(RESULTS_DIR, "all_genomes.fna"),
-        os.path.join(RESULTS_DIR, "all_genomes.gff"),
-        os.path.join(RESULTS_DIR, "all_genomes.faa"),
-        os.path.join(RESULTS_DIR, "all_genomes.ffn"),
+        os.path.join(CONCAT_INDEX, "all_genomes.fna"),
         # Bowtie2 index files
-        expand(os.path.join(RESULTS_DIR, "all_genomes.{ext}"),
+        expand(os.path.join(CONCAT_INDEX, "all_genomes.{ext}"),
                ext=["1.bt2", "2.bt2", "3.bt2", "4.bt2", "rev.1.bt2", "rev.2.bt2"]),
         # Alignments and indices per sample
-        expand(os.path.join(RESULTS_DIR, "{sample}_mapped.bam"), sample=samples),
-        expand(os.path.join(RESULTS_DIR, "{sample}_mapped.bam.bai"), sample=samples),
-        # Gene coverage per sample
-        expand(os.path.join(RESULTS_DIR, "{sample}_covered_genes.bed"), sample=samples)
+        expand(os.path.join(MAPPING_DIR, "{sample}_mapped.bam"), sample=samples),
+        expand(os.path.join(MAPPING_DIR, "{sample}_mapped.bam.bai"), sample=samples),
+        #expand(os.path.join(PROKKA, "{genome}", "{genome}.gff"), genome=GENOMES)
+        expand(os.path.join(PROKKA, "{genome}", "{genome}.gbk"),genome=GENOMES),
+        expand(os.path.join(PROKKA, "{genome}", "{genome}.faa"),genome=GENOMES),
+        expand(os.path.join(PROKKA, "{genome}", "{genome}.ffn"),genome=GENOMES),
+        expand(os.path.join(PROKKA, "{genome}", "{genome}.fna"),genome=GENOMES),
+        expand(os.path.join(PROKKA, "{genome}", "{genome}.sqn"),genome=GENOMES),
+        expand(os.path.join(PROKKA, "{genome}", "{genome}.tbl"),genome=GENOMES),
+        expand(os.path.join(PROKKA, "{genome}", "{genome}.txt"),genome=GENOMES),
+        expand(os.path.join(PROKKA, "{genome}", "{genome}.log"),genome=GENOMES),
+        expand(os.path.join(PROKKA, "{genome}", "{genome}.err"),genome=GENOMES),
+        expand(os.path.join(PROKKA, "{genome}", "{genome}.tsv"),genome=GENOMES),
+        expand(os.path.join(PROKKA, "{genome}", "{genome}.fsa"),genome=GENOMES),
+        expand(os.path.join(PROKKA, "{genome}", "{genome}.gff"),genome=GENOMES)
+
+
+
+
 
 rule unzip:
     input:
         zip_file=lambda wc: os.path.join(METAGENOME_REF_DIR, f"{wc.genome}.zip")
     output:
-        directory(os.path.join(TMP_DIR, "{genome}"))
+        directory(os.path.join(UNZIP_DIR, "{genome}"))
     shell:
         """
         mkdir -p {output} \
@@ -51,19 +65,19 @@ rule unzip:
 
 rule concatenate_fna:
     input:
-        dirs=expand(os.path.join(TMP_DIR, "{genome}"), genome=GENOMES)
+        dirs=expand(os.path.join(UNZIP_DIR, "{genome}"), genome=GENOMES)
     output:
-        os.path.join(RESULTS_DIR, "all_genomes.fna")
+        os.path.join(CONCAT_INDEX, "all_genomes.fna")
     shell:
         """
-        find {TMP_DIR} -name "*.fna" | sort | xargs cat > {output}
+        find {UNZIP_DIR} -name "*.fna" | sort | xargs cat > {output}
         """
 
 rule build_bowtie_index:
     input:
-        fna= os.path.join(RESULTS_DIR, "all_genomes.fna")
+        fna= os.path.join(CONCAT_INDEX, "all_genomes.fna")
     output:
-        expand(os.path.join(RESULTS_DIR, "all_genomes.{ext}"),
+        expand(os.path.join(CONCAT_INDEX, "all_genomes.{ext}"),
                ext=["1.bt2", "2.bt2", "3.bt2", "4.bt2", "rev.1.bt2", "rev.2.bt2"])
     conda:
         "environments/mapping.yml"
@@ -73,45 +87,62 @@ rule build_bowtie_index:
     threads: 8
     shell:
         """
-        bowtie2-build {input.fna} {RESULTS_DIR}/all_genomes
+        bowtie2-build {input.fna} {CONCAT_INDEX}/all_genomes
         """
 
-rule annotate_concatenated_with_prodigal:
-    input:
-        fna=os.path.join(RESULTS_DIR, "all_genomes.fna")
-    output:
-        gff=os.path.join(RESULTS_DIR, "all_genomes.gff"),
-        faa=os.path.join(RESULTS_DIR, "all_genomes.faa"),
-        ffn=os.path.join(RESULTS_DIR, "all_genomes.ffn")
+##Prokka
+
+rule prokka:
     conda:
-        "environments/prodigal.yml"
+        "environments/prokka.yml"
+    input:
+        # this just ensures unzip has run; we don't explicitly track the .fna here
+        workdir=os.path.join(UNZIP_DIR, "{genome}")
+    output:
+        os.path.join(PROKKA, "{genome}", "{genome}.gff"),
+        os.path.join(PROKKA, "{genome}", "{genome}.fsa"),
+        os.path.join(PROKKA, "{genome}", "{genome}.gbk"),
+        os.path.join(PROKKA, "{genome}", "{genome}.faa"),
+        os.path.join(PROKKA, "{genome}", "{genome}.ffn"),
+        os.path.join(PROKKA, "{genome}", "{genome}.fna"),
+        os.path.join(PROKKA, "{genome}", "{genome}.sqn"),
+        os.path.join(PROKKA, "{genome}", "{genome}.tbl"),
+        os.path.join(PROKKA, "{genome}", "{genome}.txt"),
+        os.path.join(PROKKA, "{genome}", "{genome}.log"),
+        os.path.join(PROKKA, "{genome}", "{genome}.tsv"),
+        os.path.join(PROKKA, "{genome}", "{genome}.err")
+    params:
+        outdir=lambda wc: os.path.join(PROKKA, wc.genome),
+        prefix="{genome}"
     shell:
-        """
-        prodigal -i {input.fna} \
-                 -o {output.gff} \
-                 -a {output.faa} \
-                 -d {output.ffn} \
-                 -f gff \
-                 -p meta
+        r"""
+        # Find the one .fna file in the unzipped dir
+        FASTA=$(find {input.workdir} -name '*_genomic.fna' | head -n1)
+        mkdir -p {params.outdir}
+        prokka \
+          --outdir {params.outdir} \
+          --prefix {params.prefix} \
+          "$FASTA" \
+          --force
         """
 
 rule mapping:
     input:
         # Todos los archivos de índice de bowtie2
-        bt2_index=expand(os.path.join(RESULTS_DIR, "all_genomes.{ext}"),
+        bt2_index=expand(os.path.join(CONCAT_INDEX, "all_genomes.{ext}"),
                          ext=["1.bt2", "2.bt2", "3.bt2", "4.bt2", "rev.1.bt2", "rev.2.bt2"]),
         r1=os.path.join(QCED_READS, "{sample}_no_rrna_1.fastq.gz"),
         r2=os.path.join(QCED_READS, "{sample}_no_rrna_2.fastq.gz")
     output:
-        bam=os.path.join(RESULTS_DIR, "{sample}_mapped.bam"),
-        bai=os.path.join(RESULTS_DIR, "{sample}_mapped.bam.bai"),
-        log=os.path.join(RESULTS_DIR, "{sample}_bowtie.log")
+        bam=os.path.join(MAPPING_DIR, "{sample}_mapped.bam"),
+        bai=os.path.join(MAPPING_DIR, "{sample}_mapped.bam.bai"),
+        log=os.path.join(MAPPING_DIR, "{sample}_bowtie.log")
     conda:
         "environments/mapping.yml"
     threads: 8
     shell:
         """
-        bowtie2 -x {RESULTS_DIR}/all_genomes \
+        bowtie2 -x {CONCAT_INDEX}/all_genomes \
                 -1 {input.r1} -2 {input.r2} \
                 --threads {threads} \
                 2> {output.log} | \
@@ -121,23 +152,3 @@ rule mapping:
         samtools index {output.bam}
         """
 
-rule extract_gene_coverage:
-    input:
-        gff=os.path.join(RESULTS_DIR, "all_genomes.gff"),
-        bam=os.path.join(RESULTS_DIR, "{sample}_mapped.bam")
-    output:
-        os.path.join(RESULTS_DIR, "{sample}_covered_genes.bed")
-    conda:
-        "environments/bedtools.yml"
-    shell:
-        """
-        # Extract lines with "CDS" in the gff file and convert to BED format
-        awk '$3 == "CDS"' {input.gff} | \
-        awk 'BEGIN{{OFS="\\t"}} {{print $1, $4-1, $5, ".", ".", $7}}' > {wildcards.sample}_genes.bed
-
-        # Use bed tools to intersect
-        bedtools intersect -a {wildcards.sample}_genes.bed -b {input.bam} -bed > {output}
-
-        # Clen temporary files
-        rm {wildcards.sample}_genes.bed
-        """
